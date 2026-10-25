@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solstis — Kıyı Pisti</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Üç boyutlu araba yarışı"></canvas>
+<div class="vignette"></div>
+<header><div class="brand"><span class="mark">S<span></span></span><div>SOLSTİS<small>KIYI PİSTİ</small></div></div><div class="event"><i></i> ZAMANA KARŞI <span> / </span> 3 TUR</div><button id="pause" class="icon-button" aria-label="Yarışı duraklat" title="Duraklat (P)">Ⅱ</button></header>
+<section id="telemetry" class="glass telemetry"><div class="lap-count"><span>TUR</span><b id="lap">01<em> / 03</em></b></div><div class="total"><span>TOPLAM SÜRE</span><strong id="total">00:00.000</strong></div><div class="current"><span>BU TUR</span><strong id="current">00:00.000</strong></div><div id="lap-list" class="lap-list"><div><span>01. TUR</span><b>—</b></div><div><span>02. TUR</span><b>—</b></div><div><span>03. TUR</span><b>—</b></div></div></section>
+<div id="notification" role="status"></div>
+<div class="map glass"><div class="map-title">PİST ROTASI <span>562 M</span></div><svg viewBox="-132 -74 264 148" aria-label="Pist haritası"><path d="M -65 -48 L 65 -48 A 48 48 0 0 1 65 48 L -65 48 A 48 48 0 0 1 -65 -48" fill="none" stroke="#4d696b" stroke-width="13"/><path d="M -65 -48 L 65 -48 A 48 48 0 0 1 65 48 L -65 48 A 48 48 0 0 1 -65 -48" fill="none" stroke="#c1d0b7" stroke-width="1" stroke-dasharray="3 5"/><path d="M -40 -56 V -40" stroke="white" stroke-width="3"/><circle id="map-dot" cx="-40" cy="-48" r="5" fill="#d7ff71" stroke="#15282b" stroke-width="2"/></svg><div class="map-caption"><i></i> SENİN ARABAN <span>SAAT YÖNÜNDE ↻</span></div></div>
+<div class="speed"><div><b id="speed">000</b><span>KM/SA</span></div><div class="speed-track"><i id="speed-bar"></i></div><footer><span id="gear">N</span><span id="surface">ASFALT</span></footer></div>
+<div class="bottom-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span> / Ok tuşları</span><span class="divider">·</span><kbd>P</kbd><span>Duraklat</span><span class="divider">·</span><kbd>F</kbd><span>Tam ekran</span></div>
+<div id="overlay" class="overlay"><main class="welcome"><div class="eyebrow"><span></span> GÜNEŞ, ASFALT VE SEN.</div><h1>Virajı hisset.<br><em>İzini bırak.</em></h1><p>Kıyı boyunca üç tur. Sadece sen, pist ve zaman.<br>En iyi çizgini bul, kendi rekorunu kır.</p><div class="specs"><div><b>03</b><span>TUR</span></div><div><b>562<span> m</span></b><span>PİST UZUNLUĞU</span></div><div><b>∞</b><span>DENEME</span></div></div><button id="start" class="primary">MOTORA HAYAT VER <span>↗</span></button><div class="controls"><div><kbd>W</kbd> / <kbd>↑</kbd><span>Gaz</span></div><div><kbd>S</kbd> / <kbd>↓</kbd><span>Fren / Geri</span></div><div><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd><span>Direksiyon</span></div></div><small class="tip">Viraja girmeden yavaşla. Çim hızını keser.</small></main><div class="edition">AKDENİZ SERİSİ <span>01 — KIYI</span></div></div>
+<div id="pause-overlay" class="modal" hidden><section class="result-card"><div class="eyebrow">KISA BİR MOLA</div><h2>Yarış duraklatıldı.</h2><p>Zaman sen hazır olana kadar bekler.</p><button id="resume" class="primary">DEVAM ET <span>↗</span></button><button id="restart-pause" class="secondary">Yeniden başlat</button></section></div>
+<div id="results" class="modal" hidden><section class="result-card"><div class="eyebrow">DAMALI BAYRAK</div><h2>Üç tur. Tek iz.</h2><p id="result-message">Kıyı pistini tamamladın.</p><div class="result-total"><span>TOPLAM SÜREN</span><b id="result-time"></b></div><div id="result-laps"></div><div class="best"><span>EN İYİ TUR</span><b id="best-lap"></b></div><button id="restart" class="primary">BİR DAHA YARIŞ <span>↗</span></button></section></div>
+<div id="countdown" aria-live="polite"></div>
+<script src="game.js"></script>
+</body></html>

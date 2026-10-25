@@ -1,0 +1,2626 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anadolu GP — 3D Araba Yarışı</title>
+  <style>
+    :root {
+      --bg-obsidian: oklch(0.14 0.015 255 / 0.88);
+      --bg-panel: oklch(0.18 0.018 255 / 0.86);
+      --bg-panel-strong: oklch(0.13 0.018 255 / 0.95);
+      --border-subtle: oklch(0.35 0.02 255 / 0.55);
+      --border-highlight: oklch(0.64 0.22 29 / 0.85);
+      --text-primary: oklch(0.97 0.01 85);
+      --text-secondary: oklch(0.78 0.02 85);
+      --text-muted: oklch(0.60 0.02 255);
+      --accent-red: oklch(0.62 0.23 28);
+      --accent-amber: oklch(0.83 0.17 82);
+      --accent-emerald: oklch(0.76 0.18 152);
+      --font-display: 'Bahnschrift', 'DIN Alternate', 'Franklin Gothic Medium', 'Trebuchet MS', sans-serif;
+      --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --font-mono: 'SF Mono', 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: oklch(0.15 0.02 250);
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #gl-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Telemetry HUD Overlay */
+    .hud-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: clamp(14px, 2vw, 24px);
+      z-index: 10;
+    }
+
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Left Telemetry Block: Lap & Checkpoints */
+    .telemetry-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-left: 4px solid var(--accent-red);
+      backdrop-filter: blur(10px);
+      padding: 14px 18px;
+      border-radius: 6px;
+      box-shadow: 0 12px 28px oklch(0.08 0.01 250 / 0.45);
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .brand-tag {
+      background: var(--accent-red);
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      padding: 3px 7px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .lap-counter-row {
+      display: flex;
+      align-items: baseline;
+       justify-content: space-between;
+      gap: 24px;
+    }
+
+    .metric-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+    }
+
+    .lap-value {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3vw, 2.35rem);
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+    }
+
+    .lap-value span {
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .sector-progress {
+      margin-top: 10px;
+    }
+
+    .sector-Header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sector-bars {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 3px;
+      width: 210px;
+    }
+
+    .sector-pip {
+      height: 6px;
+      border-radius: 2px;
+      background: oklch(0.28 0.02 255);
+      transition: background-color 0.15s ease;
+    }
+
+    .sector-pip.passed {
+      background: var(--accent-emerald);
+    }
+
+    .sector-pip.next {
+      background: var(--accent-amber);
+    }
+
+    /* Center-Top Timing Board */
+    .timing-board {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-top: 3px solid var(--accent-amber);
+      backdrop-filter: blur(10px);
+      padding: 12px 20px;
+      border-radius: 6px;
+      min-width: 290px;
+      box-shadow: 0 12px 28px oklch(0.08 0.01 250 / 0.45);
+    }
+
+    .primary-timers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 8px;
+    }
+
+    .timer-value {
+      font-family: var(--font-mono);
+      font-size: clamp(1.2rem, 2vw, 1.5rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .timer-value.accent {
+      color: var(--accent-amber);
+    }
+
+    .lap-splits-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .lap-split-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: oklch(0.14 0.015 255 / 0.5);
+    }
+
+    .lap-split-item.active-lap {
+      border-left: 2px solid var(--accent-amber);
+      color: var(--text-primary);
+    }
+
+    .lap-split-item.completed-lap {
+      border-left: 2px solid var(--accent-emerald);
+    }
+
+    .lap-split-label {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .lap-split-time {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Right Top: Minimap & Quick Actions */
+    .right-hud-column {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .minimap-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 8px 10px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #minimap-canvas {
+      display: block;
+      width: 140px;
+      height: 110px;
+    }
+
+    .hud-action-row {
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .hud-btn {
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 6px 11px;
+      font-family: var(--font-sans);
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .hud-btn:hover {
+      background: oklch(0.25 0.03 255 / 0.95);
+      border-color: var(--accent-amber);
+    }
+
+    .hud-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Center Status Alerts (Off-track, Wrong way, Lap completed) */
+    .hud-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 18px;
+      gap: 10px;
+    }
+
+    .alert-banner {
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      box-shadow: 0 10px 25px oklch(0.05 0.02 25 / 0.5);
+      text-align: center;
+    }
+
+    .alert-banner.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .alert-banner.warning {
+      background: oklch(0.54 0.22 28 / 0.95);
+      border: 2px solid oklch(0.84 0.16 80);
+      color: var(--text-primary);
+    }
+
+    .alert-banner.info {
+      background: oklch(0.22 0.04 155 / 0.94);
+      border: 2px solid var(--accent-emerald);
+      color: var(--text-primary);
+    }
+
+    /* Bottom HUD: Controls Guide + Speedometer Cluster */
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .controls-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 10px 14px;
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .key-badge {
+      display: inline-block;
+      background: oklch(0.26 0.02 255);
+      border: 1px solid oklch(0.45 0.02 255);
+      border-bottom-width: 2px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 4px;
+    }
+
+    /* Speedometer & Tachometer Cluster */
+    .speed-cluster {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-right: 4px solid var(--accent-red);
+      border-radius: 6px;
+      padding: 12px 20px;
+      backdrop-filter: blur(10px);
+      min-width: 245px;
+      box-shadow: 0 12px 28px oklch(0.08 0.01 250 / 0.45);
+    }
+
+    .speed-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 18px;
+    }
+
+    .speed-readout {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .speed-number {
+      font-family: var(--font-display);
+      font-size: clamp(2.2rem, 3.8vw, 3rem);
+      font-weight: 900;
+      line-height: 0.95;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+    }
+
+    .speed-unit {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.08em;
+    }
+
+    .gear-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: oklch(0.13 0.02 255);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 4px 10px;
+      min-width: 54px;
+    }
+
+    .gear-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+    }
+
+    .gear-value {
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      font-weight: 900;
+      color: var(--accent-amber);
+      line-height: 1.05;
+    }
+
+    .rpm-bar-track {
+      margin-top: 10px;
+      width: 100%;
+      height: 8px;
+      background: oklch(0.12 0.01 255);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid oklch(0.28 0.02 255);
+    }
+
+    .rpm-bar-fill {
+      height: 100%;
+      width: 15%;
+      background: linear-gradient(90deg, var(--accent-emerald) 0%, var(--accent-amber) 70%, var(--accent-red) 100%);
+      transition: width 0.06s linear;
+    }
+
+    .surface-status {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .surface-tag {
+      color: var(--accent-emerald);
+    }
+
+    .surface-tag.offtrack {
+      color: var(--accent-red);
+    }
+
+    /* Results Screen Modal */
+    .results-overlay {
+      position: absolute;
+      inset: 0;
+      background: oklch(0.10 0.02 255 / 0.82);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .results-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .results-panel {
+      background: var(--bg-panel-strong);
+      border: 1px solid var(--border-subtle);
+      border-top: 5px solid var(--accent-red);
+      border-radius: 8px;
+      width: min(540px, 100%);
+      padding: clamp(22px, 4vw, 34px);
+      box-shadow: 0 24px 60px oklch(0.04 0.01 255 / 0.8);
+      transform: translateY(16px);
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .results-overlay.open .results-panel {
+      transform: translateY(0);
+    }
+
+    .results-badge {
+      display: inline-block;
+      background: var(--accent-red);
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      padding: 4px 10px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .results-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .results-subtitle {
+      font-size: 0.92rem;
+      color: var(--text-secondary);
+      margin-bottom: 22px;
+    }
+
+    .results-summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .summary-box {
+      background: oklch(0.17 0.02 255);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+
+    .summary-box-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .summary-box-value {
+      font-family: var(--font-mono);
+      font-size: 1.45rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent-amber);
+    }
+
+    .results-laps-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      background: oklch(0.16 0.015 255);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .results-laps-table th,
+    .results-laps-table td {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .results-laps-table th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      background: oklch(0.14 0.015 255);
+    }
+
+    .results-laps-table td.mono-cell {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .best-lap-badge {
+      display: inline-block;
+      background: oklch(0.32 0.11 152);
+      color: var(--accent-emerald);
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: 8px;
+      text-transform: uppercase;
+    }
+
+    .results-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .btn-restart {
+      width: 100%;
+      background: var(--accent-red);
+      color: var(--text-primary);
+      border: none;
+      border-radius: 6px;
+      padding: 14px 24px;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+      box-shadow: 0 8px 20px oklch(0.55 0.22 28 / 0.4);
+    }
+
+    .btn-restart:hover {
+      background: oklch(0.67 0.23 28);
+    }
+
+    .btn-restart:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 760px) {
+      .hud-top {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .right-hud-column {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .controls-card {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gl-canvas"></canvas>
+
+    <!-- Turkish Motorsport Telemetry HUD -->
+    <div class="hud-layer">
+      <div class="hud-top">
+        <!-- Lap & Sector Progress -->
+        <div class="telemetry-card">
+          <div class="brand-header">
+            <span class="brand-tag">ANADOLU GP</span>
+            <span class="brand-title">KAPALI PİST ŞAMPİYONASI</span>
+          </div>
+          <div class="lap-counter-row">
+            <div class="metric-group">
+              <span class="metric-label">TUR SAYISI</span>
+              <div class="lap-value" id="hud-lap">1 <span>/ 3</span></div>
+            </div>
+            <div class="metric-group">
+              <span class="metric-label">PİST İLERLEMESİ</span>
+              <div class="lap-value" id="hud-progress" style="font-size:1.35rem; color: var(--accent-emerald);">%0</div>
+            </div>
+          </div>
+          <div class="sector-progress">
+            <div class="sector-Header">
+              <span>KONTROL NOKTALARI</span>
+              <span id="hud-checkpoint-text">0 / 12</span>
+            </div>
+            <div class="sector-bars" id="hud-sector-bars"></div>
+          </div>
+        </div>
+
+        <!-- Timing Board: Total Time, Current Lap, Lap Splits -->
+        <div class="timing-board">
+          <div class="primary-timers">
+            <div class="metric-group">
+              <span class="metric-label">TOPLAM SÜRE</span>
+              <div class="timer-value" id="hud-total-time">00:00.000</div>
+            </div>
+            <div class="metric-group">
+              <span class="metric-label">MEVCUT TUR</span>
+              <div class="timer-value accent" id="hud-current-lap-time">00:00.000</div>
+            </div>
+          </div>
+          <div class="lap-splits-list">
+            <div class="lap-split-item active-lap" id="lap-row-1">
+              <span class="lap-split-label">1. Tur Süresi</span>
+              <span class="lap-split-time" id="lap-time-1">--:--.---</span>
+            </div>
+            <div class="lap-split-item" id="lap-row-2">
+              <span class="lap-split-label">2. Tur Süresi</span>
+              <span class="lap-split-time" id="lap-time-2">--:--.---</span>
+            </div>
+            <div class="lap-split-item" id="lap-row-3">
+              <span class="lap-split-label">3. Tur Süresi</span>
+              <span class="lap-split-time" id="lap-time-3">--:--.---</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Track Minimap & Quick Buttons -->
+        <div class="right-hud-column">
+          <div class="minimap-card">
+            <span class="metric-label">PİST HARİTASI</span>
+            <canvas id="minimap-canvas" width="140" height="110"></canvas>
+          </div>
+          <div class="hud-action-row">
+            <button class="hud-btn" id="btn-camera" type="button" title="Kamera Açısını Değiştir (C)">Kamera: Takip (C)</button>
+            <button class="hud-btn" id="btn-quick-reset" type="button" title="Yarışı Baştan Başlat (R)">Yeniden Başlat (R)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Alerts -->
+      <div class="hud-center">
+        <div class="alert-banner" id="hud-alert"></div>
+      </div>
+
+      <!-- Bottom Controls & Speedometer -->
+      <div class="hud-bottom">
+        <div class="controls-card">
+          <div class="controls-row">
+            <span><kbd class="key-badge">W</kbd><kbd class="key-badge">↑</kbd> Gaz</span>
+            <span><kbd class="key-badge">S</kbd><kbd class="key-badge">↓</kbd> Fren / Geri</span>
+            <span><kbd class="key-badge">A</kbd><kbd class="key-badge">D</kbd> / <kbd class="key-badge">←</kbd><kbd class="key-badge">→</kbd> Dönüş</span>
+          </div>
+          <div class="controls-row">
+            <span><kbd class="key-badge">Boşluk</kbd> El Freni</span>
+            <span><kbd class="key-badge">C</kbd> Kamera</span>
+            <span><kbd class="key-badge">R</kbd> Yeniden Başlat</span>
+            <span><kbd class="key-badge">F</kbd> Tam Ekran</span>
+          </div>
+        </div>
+
+        <div class="speed-cluster">
+          <div class="speed-top-row">
+            <div class="speed-readout">
+              <span class="speed-number" id="hud-speed">0</span>
+              <span class="speed-unit">KM/S</span>
+            </div>
+            <div class="gear-box">
+              <span class="gear-label">VİTES</span>
+              <span class="gear-value" id="hud-gear">1</span>
+            </div>
+          </div>
+          <div class="rpm-bar-track">
+            <div class="rpm-bar-fill" id="hud-rpm-bar"></div>
+          </div>
+          <div class="surface-status">
+            <span>ZEMİN DURUMU</span>
+            <span class="surface-tag" id="hud-surface">ASFALT PİST</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-Lap Finish Results Modal -->
+    <div class="results-overlay" id="results-modal" role="dialog" aria-modal="true" aria-labelledby="results-heading">
+      <div class="results-panel">
+        <span class="results-badge">DAMALI BAYRAK — 3 TUR BİTTİ</span>
+        <h1 class="results-title" id="results-heading">YARIŞ TAMAMLANDI!</h1>
+        <p class="results-subtitle" id="results-rank-text">Anadolu GP kapalı pistinde 3 turu başarıyla tamamladınız.</p>
+
+        <div class="results-summary-grid">
+          <div class="summary-box">
+            <div class="summary-box-label">TOPLAM SÜRE</div>
+            <div class="summary-box-value" id="res-total-time">00:00.000</div>
+          </div>
+          <div class="summary-box">
+            <div class="summary-box-label">EN İYİ TUR</div>
+            <div class="summary-box-value" id="res-best-lap" style="color: var(--accent-emerald);">00:00.000</div>
+          </div>
+        </div>
+
+        <table class="results-laps-table">
+          <thead>
+            <tr>
+              <th>Tur</th>
+              <th>Durum</th>
+              <th style="text-align:right;">Tur Süresi</th>
+            </tr>
+          </thead>
+          <tbody id="res-laps-tbody">
+            <tr>
+              <td>1. Tur</td>
+              <td>Geçerli</td>
+              <td class="mono-cell" id="res-lap-1">00:00.000</td>
+            </tr>
+            <tr>
+              <td>2. Tur</td>
+              <td>Geçerli</td>
+              <td class="mono-cell" id="res-lap-2">00:00.000</td>
+            </tr>
+            <tr>
+              <td>3. Tur</td>
+              <td>Geçerli</td>
+              <td class="mono-cell" id="res-lap-3">00:00.000</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="results-actions">
+          <button class="btn-restart" id="btn-restart-race" type="button">YARIŞI YENİDEN BAŞLAT (ENTER / R)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. MATH & MATRIX UTILITIES (WebGL 3D)
+      // =========================================================================
+      const Mat4 = {
+        create() {
+          const out = new Float32Array(16);
+          out[0] = 1; out[5] = 1; out[10] = 1; out[15] = 1;
+          return out;
+        },
+        identity(out) {
+          out.fill(0);
+          out[0] = 1; out[5] = 1; out[10] = 1; out[15] = 1;
+          return out;
+        },
+        perspective(out, fovy, aspect, near, far) {
+          const f = 1.0 / Math.tan(fovy / 2);
+          out.fill(0);
+          out[0] = f / aspect;
+          out[5] = f;
+          out[10] = (far + near) / (near - far);
+          out[11] = -1;
+          out[14] = (2 * far * near) / (near - far);
+          return out;
+        },
+        lookAt(out, eye, center, up) {
+          let zx = eye[0] - center[0];
+          let zy = eye[1] - center[1];
+          let zz = eye[2] - center[2];
+          let len = Math.hypot(zx, zy, zz);
+          if (len === 0) {
+            zz = 1;
+          } else {
+            zx /= len; zy /= len; zz /= len;
+          }
+          let xx = up[1] * zz - up[2] * zy;
+          let xy = up[2] * zx - up[0] * zz;
+          let xz = up[0] * zy - up[1] * zx;
+          len = Math.hypot(xx, xy, xz);
+          if (len > 0) {
+            xx /= len; xy /= len; xz /= len;
+          }
+          const yx = zy * xz - zz * xy;
+          const yy = zz * xx - zx * xz;
+          const yz = zx * xy - zy * xx;
+
+          out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+          out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+          out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+          out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+          out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+          out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+          out[15] = 1;
+          return out;
+        },
+        multiply(out, a, b) {
+          const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+          const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+          const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+          const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+          for (let i = 0; i < 4; i++) {
+            const b0 = b[i * 4], b1 = b[i * 4 + 1], b2 = b[i * 4 + 2], b3 = b[i * 4 + 3];
+            out[i * 4]     = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+            out[i * 4 + 1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+            out[i * 4 + 2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+            out[i * 4 + 3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+          }
+          return out;
+        },
+        fromTranslationRotationScale(out, tx, ty, tz, yaw, pitch, roll, sx = 1, sy = 1, sz = 1) {
+          const cy = Math.cos(yaw), syaw = Math.sin(yaw);
+          const cp = Math.cos(pitch), sp = Math.sin(pitch);
+          const cr = Math.cos(roll), sr = Math.sin(roll);
+
+          // R = Ry(yaw) * Rx(pitch) * Rz(roll)
+          const r00 = cy * cr + syaw * sp * sr;
+          const r01 = cp * sr;
+          const r02 = -syaw * cr + cy * sp * sr;
+
+          const r10 = -cy * sr + syaw * sp * cr;
+          const r11 = cp * cr;
+          const r12 = syaw * sr + cy * sp * cr;
+
+          const r20 = syaw * cp;
+          const r21 = -sp;
+          const r22 = cy * cp;
+
+          out[0] = r00 * sx;
+          out[1] = r01 * sx;
+          out[2] = r02 * sx;
+          out[3] = 0;
+
+          out[4] = r10 * sy;
+          out[5] = r11 * sy;
+          out[6] = r12 * sy;
+          out[7] = 0;
+
+          out[8] = r20 * sz;
+          out[9] = r21 * sz;
+          out[10] = r22 * sz;
+          out[11] = 0;
+
+          out[12] = tx;
+          out[13] = ty;
+          out[14] = tz;
+          out[15] = 1;
+          return out;
+        }
+      };
+
+      // =========================================================================
+      // 2. CLOSED GRAND PRIX CIRCUIT SPLINE ("ANADOLU GP")
+      // =========================================================================
+      // Control points in clockwise loop (X, Z) in meters.
+      // Point 0->1 is the main Start/Finish straight heading toward -Z.
+      const RAW_CONTROL_POINTS = [
+        { x: 0,    z: 95 },
+        { x: 0,    z: 0 },     // Start/Finish line area
+        { x: 0,    z: -105 },  // End of main straight -> Turn 1 entry
+        { x: 55,   z: -175 },  // Turn 1 apex (sweeping right)
+        { x: 145,  z: -185 },  // Turn 2 exit
+        { x: 225,  z: -130 },  // Fast right bend
+        { x: 255,  z: -35 },   // Esses entry
+        { x: 205,  z: 45 },    // Esses mid (left)
+        { x: 245,  z: 130 },   // Esses exit (right)
+        { x: 200,  z: 215 },   // Hairpin entry
+        { x: 110,  z: 230 },   // Hairpin exit
+        { x: 65,   z: 170 }    // Final corner onto main straight
+      ];
+
+      const TRACK_SAMPLES = 600;
+      const ROAD_HALF_WIDTH = 10.5;       // 21m wide asphalt road
+      const KERB_WIDTH = 1.6;             // Red-white rumble strips
+      const WALL_HALF_WIDTH = 19.5;       // Closed outer/inner concrete barriers
+      const TOTAL_CHECKPOINTS = 12;
+      const TOTAL_LAPS = 3;
+
+      function catmullRom(p0, p1, p2, p3, t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return {
+          x: 0.5 * (
+            (2 * p1.x) +
+            (-p0.x + p2.x) * t +
+            (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+          ),
+          z: 0.5 * (
+            (2 * p1.z) +
+            (-p0.z + p2.z) * t +
+            (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 +
+            (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3
+          )
+        };
+      }
+
+      function buildUniformTrack(controlPts, numSamples) {
+        const denseCount = 3000;
+        const densePts = [];
+        const n = controlPts.length;
+        for (let i = 0; i < denseCount; i++) {
+          const u = (i / denseCount) * n;
+          const seg = Math.floor(u) % n;
+          const localT = u - Math.floor(u);
+          const p0 = controlPts[(seg - 1 + n) % n];
+          const p1 = controlPts[seg];
+          const p2 = controlPts[(seg + 1) % n];
+          const p3 = controlPts[(seg + 2) % n];
+          densePts.push(catmullRom(p0, p1, p2, p3, localT));
+        }
+
+        const cumLen = new Float64Array(denseCount + 1);
+        cumLen[0] = 0;
+        for (let i = 0; i < denseCount; i++) {
+          const a = densePts[i];
+          const b = densePts[(i + 1) % denseCount];
+          cumLen[i + 1] = cumLen[i] + Math.hypot(b.x - a.x, b.z - a.z);
+        }
+        const totalLength = cumLen[denseCount];
+
+        // Find index closest to (0, 0) on the main straight so index 0 is the Start/Finish Line
+        let startDenseIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < denseCount; i++) {
+          const d = Math.hypot(densePts[i].x - 0, densePts[i].z - 0);
+          if (d < bestDist) {
+            bestDist = d;
+            startDenseIdx = i;
+          }
+        }
+        const startArc = cumLen[startDenseIdx];
+
+        function sampleAtArc(s) {
+          let target = (s % totalLength + totalLength) % totalLength;
+          // Binary search in cumLen
+          let lo = 0, hi = denseCount;
+          while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (cumLen[mid] < target) lo = mid + 1;
+            else hi = mid;
+          }
+          const idx = Math.max(0, lo - 1);
+          const segLen = cumLen[idx + 1] - cumLen[idx] || 1;
+          const frac = (target - cumLen[idx]) / segLen;
+          const a = densePts[idx];
+          const b = densePts[(idx + 1) % denseCount];
+          return {
+            x: a.x + (b.x - a.x) * frac,
+            z: a.z + (b.z - a.z) * frac
+          };
+        }
+
+        const samples = [];
+        for (let i = 0; i < numSamples; i++) {
+          const arc = startArc + (i / numSamples) * totalLength;
+          samples.push(sampleAtArc(arc));
+        }
+
+        // Compute smooth tangents, right normals, and curvature
+        for (let i = 0; i < numSamples; i++) {
+          const prev = samples[(i - 1 + numSamples) % numSamples];
+          const next = samples[(i + 1) % numSamples];
+          let tx = next.x - prev.x;
+          let tz = next.z - prev.z;
+          const len = Math.hypot(tx, tz) || 1;
+          tx /= len;
+          tz /= len;
+          // Right-hand normal in XZ plane when looking along (tx, tz) with Y up:
+          // Forward = (tx, 0, tz), Up = (0, 1, 0) => Right = Forward x Up = (-tz, 0, tx)
+          const rx = -tz;
+          const rz = tx;
+          samples[i].tx = tx;
+          samples[i].tz = tz;
+          samples[i].rx = rx;
+          samples[i].rz = rz;
+          samples[i].s = i / numSamples;
+        }
+
+        return { samples, totalLength };
+      }
+
+      const track = buildUniformTrack(RAW_CONTROL_POINTS, TRACK_SAMPLES);
+
+      // Find nearest track sample to world (x, z)
+      function queryTrackPosition(x, z, hintIndex = -1) {
+        const pts = track.samples;
+        const n = pts.length;
+        let bestIdx = 0;
+        let bestD2 = Infinity;
+
+        if (hintIndex >= 0) {
+          // Local window search first
+          const windowRadius = 35;
+          for (let offset = -windowRadius; offset <= windowRadius; offset++) {
+            const idx = (hintIndex + offset + n) % n;
+            const dx = x - pts[idx].x;
+            const dz = z - pts[idx].z;
+            const d2 = dx * dx + dz * dz;
+            if (d2 < bestD2) {
+              bestD2 = d2;
+              bestIdx = idx;
+            }
+          }
+        }
+
+        if (bestD2 > 450) {
+          // Full search fallback
+          for (let i = 0; i < n; i++) {
+            const dx = x - pts[i].x;
+            const dz = z - pts[i].z;
+            const d2 = dx * dx + dz * dz;
+            if (d2 < bestD2) {
+              bestD2 = d2;
+              bestIdx = i;
+            }
+          }
+        }
+
+        const p = pts[bestIdx];
+        const dx = x - p.x;
+        const dz = z - p.z;
+        const lateralOffset = dx * p.rx + dz * p.rz; // signed offset from track center (+ is right)
+        const alongOffset = dx * p.tx + dz * p.tz;
+        const segLen = track.totalLength / n;
+        const exactIndex = (bestIdx + alongOffset / segLen + n) % n;
+        const normalizedS = exactIndex / n;
+
+        return {
+          index: bestIdx,
+          s: normalizedS,
+          point: p,
+          lateralOffset,
+          absDist: Math.abs(lateralOffset)
+        };
+      }
+
+      // =========================================================================
+      // 3. WEBGL 3D ENGINE & SHADERS
+      // =========================================================================
+      const canvas = document.getElementById('gl-canvas');
+      const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+
+      const VS_SOURCE = `
+        attribute vec3 aPosition;
+        attribute vec3 aNormal;
+        attribute vec3 aColor;
+        attribute vec2 aUV;
+
+        uniform mat4 uProj;
+        uniform mat4 uView;
+        uniform mat4 uModel;
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+        varying vec3 vColor;
+        varying vec2 vUV;
+
+        void main() {
+          vec4 worldPos = uModel * vec4(aPosition, 1.0);
+          vWorldPos = worldPos.xyz;
+          vNormal = normalize(mat3(uModel[0].xyz, uModel[1].xyz, uModel[2].xyz) * aNormal);
+          vColor = aColor;
+          vUV = aUV;
+          gl_Position = uProj * uView * worldPos;
+        }
+      `;
+
+      const FS_SOURCE = `
+        precision mediump float;
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+        varying vec3 vColor;
+        varying vec2 vUV;
+
+        uniform vec3 uCameraPos;
+        uniform vec3 uSunDir;
+        uniform int uTexMode;
+        uniform sampler2D uTexture;
+        uniform float uSpecPower;
+        uniform float uEmissive;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 L = normalize(uSunDir);
+          vec3 V = normalize(uCameraPos - vWorldPos);
+          vec3 H = normalize(L + V);
+
+          vec3 baseColor = vColor;
+          if (uTexMode == 1) {
+            vec4 tex = texture2D(uTexture, vUV);
+            baseColor = baseColor * tex.rgb;
+          } else if (uTexMode == 2) {
+            // Procedural asphalt micro-grain + lane lines from UV
+            float grain = fract(sin(dot(floor(vWorldPos.xz * 5.0), vec2(12.9898, 78.233))) * 43758.5453);
+            baseColor = vColor * (0.94 + 0.08 * grain);
+            // White edge lines near UV.x = 0.06 and 0.94
+            float edgeL = smoothstep(0.045, 0.05, vUV.x) * (1.0 - smoothstep(0.068, 0.073, vUV.x));
+            float edgeR = smoothstep(0.927, 0.932, vUV.x) * (1.0 - smoothstep(0.95, 0.955, vUV.x));
+            // Center dashed line
+            float centerLine = (1.0 - smoothstep(0.0, 0.012, abs(vUV.x - 0.5))) * step(0.55, fract(vUV.y * 0.5));
+            float lineMask = clamp(edgeL + edgeR + centerLine * 0.65, 0.0, 1.0);
+            baseColor = mix(baseColor, vec3(0.95, 0.94, 0.90), lineMask);
+          } else if (uTexMode == 3) {
+            // Grass & runoff texture pattern
+            float stripe = step(0.5, fract(vWorldPos.x * 0.08 + vWorldPos.z * 0.08));
+            float n = fract(sin(dot(floor(vWorldPos.xz * 2.0), vec2(27.1, 61.7))) * 19531.3);
+            baseColor = vColor * (0.92 + 0.08 * stripe + 0.06 * n);
+          }
+
+          float diff = max(dot(N, L), 0.0);
+          float hemi = 0.5 + 0.5 * N.y;
+          vec3 ambient = mix(vec3(0.24, 0.27, 0.35), vec3(0.52, 0.50, 0.45), hemi);
+
+          float spec = 0.0;
+          if (uSpecPower > 0.0 && diff > 0.0) {
+            spec = pow(max(dot(N, H), 0.0), uSpecPower) * 0.45;
+          }
+
+          vec3 litColor = baseColor * (ambient + diff * vec3(1.02, 0.95, 0.84) * 0.78) + vec3(spec);
+          litColor = mix(litColor, baseColor, uEmissive);
+
+          // Atmospheric distance fog
+          float dist = length(uCameraPos - vWorldPos);
+          float fogFactor = clamp((dist - 110.0) / 340.0, 0.0, 1.0);
+          vec3 fogColor = vec3(0.76, 0.83, 0.92);
+          vec3 finalColor = mix(litColor, fogColor, fogFactor * fogFactor);
+
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `;
+
+      function compileShader(type, source) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, source);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+          console.error('Shader error:', gl.getShaderInfoLog(s));
+        }
+        return s;
+      }
+
+      const program = gl.createProgram();
+      gl.attachShader(program, compileShader(gl.VERTEX_SHADER, VS_SOURCE));
+      gl.attachShader(program, compileShader(gl.FRAGMENT_SHADER, FS_SOURCE));
+      gl.linkProgram(program);
+      gl.useProgram(program);
+
+      const attribs = {
+        pos: gl.getAttribLocation(program, 'aPosition'),
+        norm: gl.getAttribLocation(program, 'aNormal'),
+        col: gl.getAttribLocation(program, 'aColor'),
+        uv: gl.getAttribLocation(program, 'aUV')
+      };
+
+      const uniforms = {
+        proj: gl.getUniformLocation(program, 'uProj'),
+        view: gl.getUniformLocation(program, 'uView'),
+        model: gl.getUniformLocation(program, 'uModel'),
+        camPos: gl.getUniformLocation(program, 'uCameraPos'),
+        sunDir: gl.getUniformLocation(program, 'uSunDir'),
+        texMode: gl.getUniformLocation(program, 'uTexMode'),
+        tex: gl.getUniformLocation(program, 'uTexture'),
+        specPower: gl.getUniformLocation(program, 'uSpecPower'),
+        emissive: gl.getUniformLocation(program, 'uEmissive')
+      };
+
+      // =========================================================================
+      // 4. PROCEDURAL TEXTURES (Checkered Start/Finish Line & Gantry Banner)
+      // =========================================================================
+      function createCanvasTexture(drawFn, width = 512, height = 256) {
+        const c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        const ctx = c.getContext('2d');
+        drawFn(ctx, width, height);
+
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        return tex;
+      }
+
+      // Checkered Start/Finish Line Texture
+      const checkerTexture = createCanvasTexture((ctx, w, h) => {
+        ctx.fillStyle = '#1c1e24';
+        ctx.fillRect(0, 0, w, h);
+        // Yellow outer lines
+        ctx.fillStyle = '#f5b82e';
+        ctx.fillRect(0, 0, w, 14);
+        ctx.fillRect(0, h - 14, w, 14);
+
+        const cols = 16;
+        const rows = 4;
+        const cw = w / cols;
+        const ch = (h - 28) / rows;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            ctx.fillStyle = (r + c) % 2 === 0 ? '#f8f8f5' : '#14161b';
+            ctx.fillRect(c * cw, 14 + r * ch, cw + 0.5, ch + 0.5);
+          }
+        }
+      }, 512, 128);
+
+      // Overhead Start/Finish Gantry Banner Texture (Turkish)
+      const bannerTexture = createCanvasTexture((ctx, w, h) => {
+        ctx.fillStyle = '#141720';
+        ctx.fillRect(0, 0, w, h);
+
+        // Red racing top/bottom borders
+        ctx.fillStyle = '#e02f2f';
+        ctx.fillRect(0, 0, w, 18);
+        ctx.fillRect(0, h - 18, w, 18);
+
+        // Checkered side accents
+        const sq = 22;
+        for (let y = 18; y < h - 18; y += sq) {
+          for (let x = 0; x < 66; x += sq) {
+            ctx.fillStyle = ((x / sq + y / sq) & 1) ? '#ffffff' : '#1b1e28';
+            ctx.fillRect(x, y, sq, sq);
+            ctx.fillRect(w - 66 + x, y, sq, sq);
+          }
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 54px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BAŞLANGIÇ / BİTİŞ', w / 2, h / 2 + 2);
+      }, 1024, 160);
+
+      // =========================================================================
+      // 5. MESH BUILDER UTILITIES
+      // =========================================================================
+      class MeshBuilder {
+        constructor() {
+          this.positions = [];
+          this.normals = [];
+          this.colors = [];
+          this.uvs = [];
+          this.indices = [];
+        }
+
+        addVertex(x, y, z, nx, ny, nz, r, g, b, u = 0, v = 0) {
+          const idx = this.positions.length / 3;
+          this.positions.push(x, y, z);
+          this.normals.push(nx, ny, nz);
+          this.colors.push(r, g, b);
+          this.uvs.push(u, v);
+          return idx;
+        }
+
+        addQuad(p0, p1, p2, p3, color, uv0 = [0, 0], uv1 = [1, 0], uv2 = [1, 1], uv3 = [0, 1]) {
+          // Compute face normal from (p1 - p0) x (p2 - p0)
+          const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+          const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+          let nx = uy * vz - uz * vy;
+          let ny = uz * vx - ux * vz;
+          let nz = ux * vy - uy * vx;
+          const len = Math.hypot(nx, ny, nz) || 1;
+          nx /= len; ny /= len; nz /= len;
+
+          const [r, g, b] = color;
+          const i0 = this.addVertex(p0[0], p0[1], p0[2], nx, ny, nz, r, g, b, uv0[0], uv0[1]);
+          const i1 = this.addVertex(p1[0], p1[1], p1[2], nx, ny, nz, r, g, b, uv1[0], uv1[1]);
+          const i2 = this.addVertex(p2[0], p2[1], p2[2], nx, ny, nz, r, g, b, uv2[0], uv2[1]);
+          const i3 = this.addVertex(p3[0], p3[1], p3[2], nx, ny, nz, r, g, b, uv3[0], uv3[1]);
+          this.indices.push(i0, i1, i2, i0, i2, i3);
+        }
+
+        addBox(cx, cy, cz, sx, sy, sz, color) {
+          const hx = sx * 0.5, hy = sy * 0.5, hz = sz * 0.5;
+          const x0 = cx - hx, x1 = cx + hx;
+          const y0 = cy - hy, y1 = cy + hy;
+          const z0 = cz - hz, z1 = cz + hz;
+
+          // Top (+Y)
+          this.addQuad([x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], color);
+          // Bottom (-Y)
+          this.addQuad([x0, y0, z1], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], color);
+          // Front (+Z)
+          this.addQuad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], color);
+          // Back (-Z)
+          this.addQuad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], color);
+          // Right (+X)
+          this.addQuad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], color);
+          // Left (-X)
+          this.addQuad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], color);
+        }
+
+        addCylinderX(cx, cy, cz, radius, width, segments, tireColor, rimColor) {
+          const x0 = cx - width * 0.5;
+          const x1 = cx + width * 0.5;
+          for (let i = 0; i < segments; i++) {
+            const a0 = (i / segments) * Math.PI * 2;
+            const a1 = ((i + 1) / segments) * Math.PI * 2;
+            const y0 = cy + Math.sin(a0) * radius;
+            const z0 = cz + Math.cos(a0) * radius;
+            const y1 = cy + Math.sin(a1) * radius;
+            const z1 = cz + Math.cos(a1) * radius;
+
+            // Tread
+            this.addQuad([x0, y0, z0], [x1, y0, z0], [x1, y1, z1], [x0, y1, z1], tireColor);
+
+            // Outer & Inner wheel caps with spoke contrast
+            const capCol = (i % 2 === 0) ? rimColor : [rimColor[0] * 0.65, rimColor[1] * 0.65, rimColor[2] * 0.68];
+            this.addQuad([x1, cy, cz], [x1, y1, z1], [x1, y0, z0], [x1, cy, cz], capCol);
+            this.addQuad([x0, cy, cz], [x0, y0, z0], [x0, y1, z1], [x0, cy, cz], capCol);
+          }
+        }
+
+        build() {
+          const vboPos = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vboPos);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+
+          const vboNorm = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vboNorm);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.normals), gl.STATIC_DRAW);
+
+          const vboCol = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vboCol);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.colors), gl.STATIC_DRAW);
+
+          const vboUV = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vboUV);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.uvs), gl.STATIC_DRAW);
+
+          const ibo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(this.indices), gl.STATIC_DRAW);
+
+          return {
+            vboPos,
+            vboNorm,
+            vboCol,
+            vboUV,
+            ibo,
+            count: this.indices.length
+          };
+        }
+      }
+
+      // Enable 32-bit index buffer support if available, or use Uint16 per mesh
+      const uintExt = gl.getExtension('OES_element_index_uint');
+      MeshBuilder.prototype.build = function () {
+        const vboPos = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboPos);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+
+        const vboNorm = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboNorm);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.normals), gl.STATIC_DRAW);
+
+        const vboCol = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboCol);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.colors), gl.STATIC_DRAW);
+
+        const vboUV = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboUV);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.uvs), gl.STATIC_DRAW);
+
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        const useUint32 = Boolean(uintExt) && this.positions.length / 3 > 65530;
+        gl.bufferData(
+          gl.ELEMENT_ARRAY_BUFFER,
+          useUint32 ? new Uint32Array(this.indices) : new Uint16Array(this.indices),
+          gl.STATIC_DRAW
+        );
+
+        return {
+          vboPos,
+          vboNorm,
+          vboCol,
+          vboUV,
+          ibo,
+          indexType: useUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+          count: this.indices.length
+        };
+      };
+
+      function drawMesh(mesh, modelMatrix, texMode = 0, texture = null, specPower = 0.0, emissive = 0.0) {
+        gl.uniformMatrix4fv(uniforms.model, false, modelMatrix);
+        gl.uniform1i(uniforms.texMode, texMode);
+        gl.uniform1f(uniforms.specPower, specPower);
+        gl.uniform1f(uniforms.emissive, emissive);
+
+        if (texture) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.uniform1i(uniforms.tex, 0);
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vboPos);
+        gl.enableVertexAttribArray(attribs.pos);
+        gl.vertexAttribPointer(attribs.pos, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vboNorm);
+        gl.enableVertexAttribArray(attribs.norm);
+        gl.vertexAttribPointer(attribs.norm, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vboCol);
+        gl.enableVertexAttribArray(attribs.col);
+        gl.vertexAttribPointer(attribs.col, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vboUV);
+        gl.enableVertexAttribArray(attribs.uv);
+        gl.vertexAttribPointer(attribs.uv, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ibo);
+        gl.drawElements(gl.TRIANGLES, mesh.count, mesh.indexType, 0);
+      }
+
+      // =========================================================================
+      // 6. BUILD 3D WORLD GEOMETRY (Track, Kerbs, Walls, Gantry, Scenery, Car)
+      // =========================================================================
+      const IDENTITY_MAT = Mat4.create();
+
+      // 6A. Ground Plane (Lush Mediterranean Grass)
+      const groundBuilder = new MeshBuilder();
+      groundBuilder.addQuad(
+        [-900, -0.08, -900],
+        [-900, -0.08,  900],
+        [ 900, -0.08,  900],
+        [ 900, -0.08, -900],
+        [0.24, 0.45, 0.22]
+      );
+      const groundMesh = groundBuilder.build();
+
+      // 6B. Asphalt Road Ribbon Mesh
+      const roadBuilder = new MeshBuilder();
+      const kerbAndWallBuilder = new MeshBuilder();
+      const pts = track.samples;
+      const nPts = pts.length;
+      const segLength = track.totalLength / nPts;
+
+      for (let i = 0; i < nPts; i++) {
+        const p0 = pts[i];
+        const p1 = pts[(i + 1) % nPts];
+
+        const v0 = i * segLength * 0.12;
+        const v1 = (i + 1) * segLength * 0.12;
+
+        // Road surface vertices
+        const rL0 = [p0.x - p0.rx * ROAD_HALF_WIDTH, 0.02, p0.z - p0.rz * ROAD_HALF_WIDTH];
+        const rR0 = [p0.x + p0.rx * ROAD_HALF_WIDTH, 0.02, p0.z + p0.rz * ROAD_HALF_WIDTH];
+        const rR1 = [p1.x + p1.rx * ROAD_HALF_WIDTH, 0.02, p1.z + p1.rz * ROAD_HALF_WIDTH];
+        const rL1 = [p1.x - p1.rx * ROAD_HALF_WIDTH, 0.02, p1.z - p1.rz * ROAD_HALF_WIDTH];
+
+        roadBuilder.addQuad(
+          rL0, rL1, rR1, rR0,
+          [0.23, 0.25, 0.29],
+          [0, v0], [0, v1], [1, v1], [1, v0]
+        );
+
+        // Raised 3D Red & White Kerbs (Bordürler) on both edges
+        const isRedKerb = (Math.floor(i / 2) % 2) === 0;
+        const kerbCol = isRedKerb ? [0.86, 0.18, 0.16] : [0.95, 0.95, 0.93];
+        const kInner = ROAD_HALF_WIDTH;
+        const kOuter = ROAD_HALF_WIDTH + KERB_WIDTH;
+        const kH = 0.11;
+
+        // Right Kerb
+        const krI0 = [p0.x + p0.rx * kInner, 0.02, p0.z + p0.rz * kInner];
+        const krO0 = [p0.x + p0.rx * kOuter, kH,   p0.z + p0.rz * kOuter];
+        const krO1 = [p1.x + p1.rx * kOuter, kH,   p1.z + p1.rz * kOuter];
+        const krI1 = [p1.x + p1.rx * kInner, 0.02, p1.z + p1.rz * kInner];
+        kerbAndWallBuilder.addQuad(krI0, krI1, krO1, krO0, kerbCol);
+
+        // Left Kerb
+        const klI0 = [p0.x - p0.rx * kInner, 0.02, p0.z - p0.rz * kInner];
+        const klO0 = [p0.x - p0.rx * kOuter, kH,   p0.z - p0.rz * kOuter];
+        const klO1 = [p1.x - p1.rx * kOuter, kH,   p1.z - p1.rz * kOuter];
+        const klI1 = [p1.x - p1.rx * kInner, 0.02, p1.z - p1.rz * kInner];
+        kerbAndWallBuilder.addQuad(klO0, klO1, klI1, klI0, kerbCol);
+
+        // Closed Concrete Perimeter Barriers (Inner & Outer Walls)
+        const wallCol = (Math.floor(i / 4) % 2 === 0)
+          ? [0.85, 0.86, 0.88]
+          : [0.22, 0.38, 0.72];
+        const topRailCol = (Math.floor(i / 4) % 2 === 0)
+          ? [0.88, 0.22, 0.18]
+          : [0.96, 0.96, 0.96];
+
+        const wDist = WALL_HALF_WIDTH;
+        const wThick = 0.9;
+        const wHeight = 1.45;
+
+        // Right Barrier Wall (inner face + top face)
+        const wr0 = [p0.x + p0.rx * wDist, 0, p0.z + p0.rz * wDist];
+        const wr1 = [p1.x + p1.rx * wDist, 0, p1.z + p1.rz * wDist];
+        const wr0T = [wr0[0], wHeight, wr0[2]];
+        const wr1T = [wr1[0], wHeight, wr1[2]];
+        const wr0B = [p0.x + p0.rx * (wDist + wThick), wHeight, p0.z + p0.rz * (wDist + wThick)];
+        const wr1B = [p1.x + p1.rx * (wDist + wThick), wHeight, p1.z + p1.rz * (wDist + wThick)];
+        kerbAndWallBuilder.addQuad(wr0, wr0T, wr1T, wr1, wallCol);
+        kerbAndWallBuilder.addQuad(wr0T, wr0B, wr1B, wr1T, topRailCol);
+
+        // Left Barrier Wall (inner face + top face)
+        const wl0 = [p0.x - p0.rx * wDist, 0, p0.z - p0.rz * wDist];
+        const wl1 = [p1.x - p1.rx * wDist, 0, p1.z - p1.rz * wDist];
+        const wl0T = [wl0[0], wHeight, wl0[2]];
+        const wl1T = [wl1[0], wHeight, wl1[2]];
+        const wl0B = [p0.x - p0.rx * (wDist + wThick), wHeight, p0.z - p0.rz * (wDist + wThick)];
+        const wl1B = [p1.x - p1.rx * (wDist + wThick), wHeight, p1.z - p1.rz * (wDist + wThick)];
+        kerbAndWallBuilder.addQuad(wl1, wl1T, wl0T, wl0, wallCol);
+        kerbAndWallBuilder.addQuad(wl1T, wl1B, wl0B, wl0T, topRailCol);
+      }
+
+      const roadMesh = roadBuilder.build();
+      const kerbAndWallMesh = kerbAndWallBuilder.build();
+
+      // 6C. Start/Finish Line Checkered Mesh + Overhead Gantry Banner
+      const pStart = pts[0];
+      const startLineBuilder = new MeshBuilder();
+      const sfHalfLen = 2.4;
+      const sfW = ROAD_HALF_WIDTH * 0.98;
+      const sfFL = [
+        pStart.x - pStart.rx * sfW + pStart.tx * sfHalfLen,
+        0.045,
+        pStart.z - pStart.rz * sfW + pStart.tz * sfHalfLen
+      ];
+      const sfFR = [
+        pStart.x + pStart.rx * sfW + pStart.tx * sfHalfLen,
+        0.045,
+        pStart.z + pStart.rz * sfW + pStart.tz * sfHalfLen
+      ];
+      const sfBL = [
+        pStart.x - pStart.rx * sfW - pStart.tx * sfHalfLen,
+        0.045,
+        pStart.z - pStart.rz * sfW - pStart.tz * sfHalfLen
+      ];
+      const sfBR = [
+        pStart.x + pStart.rx * sfW - pStart.tx * sfHalfLen,
+        0.045,
+        pStart.z + pStart.rz * sfW - pStart.tz * sfHalfLen
+      ];
+      startLineBuilder.addQuad(
+        sfBL, sfFL, sfFR, sfBR,
+        [1, 1, 1],
+        [0, 0], [0, 1], [1, 1], [1, 0]
+      );
+      const startLineMesh = startLineBuilder.build();
+
+      // Overhead Banner Sign Mesh (textured with "BAŞLANGIÇ / BİTİŞ")
+      const bannerBuilder = new MeshBuilder();
+      const bSpan = ROAD_HALF_WIDTH + 1.8;
+      const bY0 = 5.4, bY1 = 7.5;
+      const bZ = pStart.z;
+      // Front face facing the starting grid (+Z side looking toward -Z)
+      bannerBuilder.addQuad(
+        [pStart.x - bSpan, bY0, bZ + 0.55],
+        [pStart.x + bSpan, bY0, bZ + 0.55],
+        [pStart.x + bSpan, bY1, bZ + 0.55],
+        [pStart.x - bSpan, bY1, bZ + 0.55],
+        [1, 1, 1],
+        [0, 1], [1, 1], [1, 0], [0, 0]
+      );
+      // Back face
+      bannerBuilder.addQuad(
+        [pStart.x + bSpan, bY0, bZ - 0.55],
+        [pStart.x - bSpan, bY0, bZ - 0.55],
+        [pStart.x - bSpan, bY1, bZ - 0.55],
+        [pStart.x + bSpan, bY1, bZ - 0.55],
+        [1, 1, 1],
+        [0, 1], [1, 1], [1, 0], [0, 0]
+      );
+      const bannerMesh = bannerBuilder.build();
+
+      // 6D. Scenery Mesh (Gantry Towers, Sector Gates, Grandstands, Trees, Hills)
+      const sceneryBuilder = new MeshBuilder();
+
+      // Start/Finish Gantry Pillars & Truss
+      sceneryBuilder.addBox(pStart.x - (bSpan + 0.5), 3.9, bZ, 0.9, 7.8, 1.1, [0.20, 0.22, 0.26]);
+      sceneryBuilder.addBox(pStart.x + (bSpan + 0.5), 3.9, bZ, 0.9, 7.8, 1.1, [0.20, 0.22, 0.26]);
+      sceneryBuilder.addBox(pStart.x, 6.45, bZ, bSpan * 2, 1.9, 0.95, [0.15, 0.17, 0.22]);
+
+      // Starting Lights Pods under Gantry
+      for (let li = -2; li <= 2; li++) {
+        sceneryBuilder.addBox(pStart.x + li * 1.35, 4.9, bZ + 0.5, 0.65, 0.85, 0.35, [0.12, 0.12, 0.14]);
+        sceneryBuilder.addBox(pStart.x + li * 1.35, 4.85, bZ + 0.7, 0.42, 0.42, 0.1, [0.18, 0.88, 0.36]);
+      }
+
+      // Sector Arches at Checkpoints 4 and 8
+      [Math.floor(nPts / 3), Math.floor((nPts * 2) / 3)].forEach((idx, sIdx) => {
+        const sp = pts[idx];
+        const span = ROAD_HALF_WIDTH + 1.5;
+        const lx = sp.x - sp.rx * span;
+        const lz = sp.z - sp.rz * span;
+        const rx = sp.x + sp.rx * span;
+        const rz = sp.z + sp.rz * span;
+        const archCol = sIdx === 0 ? [0.92, 0.58, 0.14] : [0.18, 0.68, 0.52];
+        sceneryBuilder.addBox(lx, 3.2, lz, 0.8, 6.4, 0.8, [0.22, 0.24, 0.28]);
+        sceneryBuilder.addBox(rx, 3.2, rz, 0.8, 6.4, 0.8, [0.22, 0.24, 0.28]);
+        // Top crossbar along right vector
+        const topH0 = 5.6, topH1 = 6.5;
+        const pL0 = [lx - sp.tx * 0.4, topH0, lz - sp.tz * 0.4];
+        const pR0 = [rx - sp.tx * 0.4, topH0, rz - sp.tz * 0.4];
+        const pR1 = [rx - sp.tx * 0.4, topH1, rz - sp.tz * 0.4];
+        const pL1 = [lx - sp.tx * 0.4, topH1, lz - sp.tz * 0.4];
+        sceneryBuilder.addQuad(pL0, pR0, pR1, pL1, archCol);
+        const pL0b = [lx + sp.tx * 0.4, topH0, lz + sp.tz * 0.4];
+        const pR0b = [rx + sp.tx * 0.4, topH0, rz + sp.tz * 0.4];
+        const pR1b = [rx + sp.tx * 0.4, topH1, rz + sp.tz * 0.4];
+        const pL1b = [lx + sp.tx * 0.4, topH1, lz + sp.tz * 0.4];
+        sceneryBuilder.addQuad(pR0b, pL0b, pL1b, pR1b, archCol);
+      });
+
+      // Main Straight Grandstands (Tribünler)
+      for (let zOff = -55; zOff <= 45; zOff += 25) {
+        // Left Grandstand
+        sceneryBuilder.addBox(-27, 2.2, zOff, 7.5, 4.4, 20, [0.28, 0.31, 0.37]);
+        sceneryBuilder.addBox(-25.5, 3.4, zOff, 4.2, 2.2, 19, [0.82, 0.22, 0.20]);
+        sceneryBuilder.addBox(-27.5, 6.4, zOff, 8.5, 0.5, 21, [0.92, 0.92, 0.94]);
+        // Pit Building on Right
+        sceneryBuilder.addBox(27, 2.8, zOff, 7.0, 5.6, 20, [0.88, 0.89, 0.91]);
+        sceneryBuilder.addBox(23.4, 3.2, zOff, 0.3, 2.2, 18, [0.18, 0.28, 0.38]);
+      }
+
+      // Trees & Mediterranean Cypresses outside the barrier walls
+      function addTree(tx, tz, scale) {
+        sceneryBuilder.addBox(tx, 1.1 * scale, tz, 0.55 * scale, 2.2 * scale, 0.55 * scale, [0.42, 0.28, 0.16]);
+        sceneryBuilder.addBox(tx, 3.2 * scale, tz, 2.6 * scale, 2.8 * scale, 2.6 * scale, [0.18, 0.44, 0.20]);
+        sceneryBuilder.addBox(tx, 5.1 * scale, tz, 1.7 * scale, 2.2 * scale, 1.7 * scale, [0.24, 0.52, 0.23]);
+      }
+
+      for (let i = 0; i < nPts; i += 14) {
+        const p = pts[i];
+        const side = (i % 28 === 0) ? 1 : -1;
+        const dist = WALL_HALF_WIDTH + 8.5 + (i % 7) * 2.2;
+        const tx = p.x + p.rx * side * dist;
+        const tz = p.z + p.rz * side * dist;
+        // Make sure tree is not close to any other part of the track
+        const nearest = queryTrackPosition(tx, tz, i);
+        if (nearest.absDist > WALL_HALF_WIDTH + 5.5) {
+          addTree(tx, tz, 0.85 + (i % 5) * 0.15);
+        }
+      }
+
+      // Distant Background Hills
+      const hillCoords = [
+        [-220, -320, 140, 48, 120],
+        [ 120, -380, 190, 62, 140],
+        [ 440, -140, 160, 55, 180],
+        [ 420,  220, 170, 50, 150],
+        [  90,  420, 210, 58, 130],
+        [-240,  260, 150, 44, 160]
+      ];
+      for (const [hx, hz, sx, sy, sz] of hillCoords) {
+        sceneryBuilder.addBox(hx, sy * 0.45, hz, sx, sy, sz, [0.30, 0.46, 0.34]);
+      }
+
+      const sceneryMesh = sceneryBuilder.build();
+
+      // 6E. Player Sports Car Mesh ("Anadolu GT-R")
+      // Local coordinate system: +Z is Rear, -Z is Front (or let's use +Z Forward or -Z Forward consistently).
+      // Let's make Car Local Space:
+      //   X: Right (+X), Left (-X)
+      //   Y: Up (+Y)
+      //   Z: Forward (+Z is Front of car, -Z is Rear of car)
+      const carChassisBuilder = new MeshBuilder();
+      const redBody = [0.86, 0.14, 0.14];
+      const darkCarbon = [0.14, 0.15, 0.18];
+      const whiteStripe = [0.96, 0.96, 0.96];
+      const glassTint = [0.16, 0.22, 0.30];
+      const headlightCol = [0.98, 0.96, 0.84];
+
+      // Shadow plate just above ground
+      carChassisBuilder.addBox(0, 0.04, 0, 2.15, 0.02, 4.55, [0.07, 0.08, 0.10]);
+      // Lower carbon splitter & floor
+      carChassisBuilder.addBox(0, 0.24, 0.05, 1.98, 0.16, 4.45, darkCarbon);
+      // Main sculpted body
+      carChassisBuilder.addBox(0, 0.50, 0.0, 1.92, 0.42, 4.28, redBody);
+      // Center white racing stripe along hood & roof
+      carChassisBuilder.addBox(0, 0.72, 0.15, 0.38, 0.04, 3.85, whiteStripe);
+      // Front hood slope
+      carChassisBuilder.addBox(0, 0.62, 1.35, 1.76, 0.22, 1.45, redBody);
+      // Cabin / Cockpit
+      carChassisBuilder.addBox(0, 0.92, -0.18, 1.46, 0.46, 1.85, glassTint);
+      carChassisBuilder.addBox(0, 1.16, -0.22, 1.32, 0.06, 1.35, redBody);
+      // White racing stripe on roof
+      carChassisBuilder.addBox(0, 1.20, -0.22, 0.34, 0.03, 1.30, whiteStripe);
+      // Rear engine deck louvers
+      carChassisBuilder.addBox(0, 0.76, -1.55, 1.55, 0.16, 0.95, darkCarbon);
+      // Rear GT Wing uprights & airfoil
+      carChassisBuilder.addBox(-0.62, 0.96, -1.92, 0.08, 0.48, 0.28, darkCarbon);
+      carChassisBuilder.addBox( 0.62, 0.96, -1.92, 0.08, 0.48, 0.28, darkCarbon);
+      carChassisBuilder.addBox(0, 1.22, -1.96, 1.96, 0.08, 0.42, darkCarbon);
+      carChassisBuilder.addBox(-0.98, 1.20, -1.96, 0.05, 0.26, 0.48, redBody);
+      carChassisBuilder.addBox( 0.98, 0.20 + 1.0, -1.96, 0.05, 0.26, 0.48, redBody);
+      // Headlights (+Z front)
+      carChassisBuilder.addBox(-0.68, 0.56, 2.15, 0.36, 0.14, 0.06, headlightCol);
+      carChassisBuilder.addBox( 0.68, 0.56, 2.15, 0.36, 0.14, 0.06, headlightCol);
+
+      const carChassisMesh = carChassisBuilder.build();
+
+      // Separate Brake Light Mesh (-Z rear) so it glows bright when braking
+      const brakeLightBuilder = new MeshBuilder();
+      brakeLightBuilder.addBox(-0.62, 0.58, -2.15, 0.48, 0.14, 0.06, [1.0, 0.12, 0.12]);
+      brakeLightBuilder.addBox( 0.62, 0.58, -2.15, 0.48, 0.14, 0.06, [1.0, 0.12, 0.12]);
+      brakeLightBuilder.addBox( 0.00, 0.62, -2.15, 1.50, 0.05, 0.05, [1.0, 0.18, 0.15]);
+      const brakeLightMesh = brakeLightBuilder.build();
+
+      // Wheel Mesh (centered at origin so each of 4 wheels can spin & steer)
+      const wheelBuilder = new MeshBuilder();
+      wheelBuilder.addCylinderX(0, 0, 0, 0.38, 0.34, 14, [0.12, 0.13, 0.15], [0.85, 0.87, 0.90]);
+      const wheelMesh = wheelBuilder.build();
+
+      // =========================================================================
+      // 7. GAME STATE, PHYSICS & ANTI-CHEAT LAP SYSTEM
+      // =========================================================================
+      const CAMERA_MODES = [
+        { name: 'Takip', dist: 8.6, height: 3.35, lookAhead: 5.5 },
+        { name: 'Yakın', dist: 6.4, height: 2.35, lookAhead: 7.0 },
+        { name: 'Geniş', dist: 12.2, height: 5.10, lookAhead: 4.5 }
+      ];
+
+      const input = {
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        handbrake: false
+      };
+
+      const state = {
+        mode: 'racing', // 'racing' | 'finished'
+        cameraModeIdx: 0,
+        car: {
+          x: 0,
+          y: 0,
+          z: 13.5,         // 13.5m behind Start/Finish line so the line is right in front of the car!
+          heading: Math.PI, // Facing -Z (since sin(pi)=0, cos(pi)=-1 -> forward=(0, -1))
+          speed: 0,         // m/s (max ~52 m/s = 187 km/h)
+          steerAngle: 0,    // front wheel angle (rad)
+          wheelSpin: 0,     // wheel rotation angle (rad)
+          pitch: 0,
+          roll: 0,
+          offTrack: false,
+          hittingWall: false,
+          braking: false
+        },
+        camera: {
+          x: 0,
+          y: 3.6,
+          z: 22.1,
+          lookX: 0,
+          lookY: 0.9,
+          lookZ: 0
+        },
+        race: {
+          started: false,
+          crossedStartLineToBegin: false,
+          lap: 1,
+          maxLaps: TOTAL_LAPS,
+          totalTimeMs: 0,
+          currentLapTimeMs: 0,
+          lapTimesMs: [null, null, null],
+          nextCheckpoint: 1,       // Checkpoints 1..11 must be passed in order before crossing 0 counts a lap
+          checkpointsPassedCount: 0,
+          lastTrackIndex: 0,
+          trackProgress: 0,
+          wrongWay: false,
+          alertText: '',
+          alertType: 'info',
+          alertTimerMs: 0
+        }
+      };
+
+      function showTemporaryAlert(text, type = 'info', durationMs = 2200) {
+        state.race.alertText = text;
+        state.race.alertType = type;
+        state.race.alertTimerMs = durationMs;
+      }
+
+      // Build checkpoint pips in HUD
+      const sectorBarsContainer = document.getElementById('hud-sector-bars');
+      const sectorPips = [];
+      for (let i = 0; i < TOTAL_CHECKPOINTS; i++) {
+        const pip = document.createElement('div');
+        pip.className = 'sector-pip';
+        sectorBarsContainer.appendChild(pip);
+        sectorPips.push(pip);
+      }
+
+      function resetRace() {
+        // Place car on the starting grid just behind the Start/Finish line (s ~ 0.985)
+        const startSampleIdx = (TRACK_SAMPLES - 9) % TRACK_SAMPLES;
+        const sp = track.samples[startSampleIdx];
+        const forwardHeading = Math.atan2(sp.tx, sp.tz);
+
+        state.mode = 'racing';
+        state.car.x = sp.x;
+        state.car.y = 0;
+        state.car.z = sp.z;
+        state.car.heading = forwardHeading;
+        state.car.speed = 0;
+        state.car.steerAngle = 0;
+        state.car.wheelSpin = 0;
+        state.car.pitch = 0;
+        state.car.roll = 0;
+        state.car.offTrack = false;
+        state.car.hittingWall = false;
+        state.car.braking = false;
+
+        const camPreset = CAMERA_MODES[state.cameraModeIdx];
+        state.camera.x = sp.x - sp.tx * camPreset.dist;
+        state.camera.y = camPreset.height;
+        state.camera.z = sp.z - sp.tz * camPreset.dist;
+        state.camera.lookX = sp.x + sp.tx * camPreset.lookAhead;
+        state.camera.lookY = 0.85;
+        state.camera.lookZ = sp.z + sp.tz * camPreset.lookAhead;
+
+        state.race.started = false;
+        state.race.crossedStartLineToBegin = false;
+        state.race.lap = 1;
+        state.race.totalTimeMs = 0;
+        state.race.currentLapTimeMs = 0;
+        state.race.lapTimesMs = [null, null, null];
+        state.race.nextCheckpoint = 1;
+        state.race.checkpointsPassedCount = 0;
+        state.race.lastTrackIndex = startSampleIdx;
+        state.race.trackProgress = 0;
+        state.race.wrongWay = false;
+        state.race.alertText = '';
+        state.race.alertTimerMs = 0;
+
+        document.getElementById('results-modal').classList.remove('open');
+        updateHUD();
+      }
+
+      function formatTimeMs(ms) {
+        if (ms === null || ms === undefined || Number.isNaN(ms)) return '--:--.---';
+        const clamped = Math.max(0, Math.round(ms));
+        const minutes = Math.floor(clamped / 60000);
+        const seconds = Math.floor((clamped % 60000) / 1000);
+        const millis = clamped % 1000;
+        return (
+          String(minutes).padStart(2, '0') + ':' +
+          String(seconds).padStart(2, '0') + '.' +
+          String(millis).padStart(3, '0')
+        );
+      }
+
+      // Physics & Race Logic Update (fixed dt in seconds)
+      function updateSimulation(dt) {
+        const car = state.car;
+        const race = state.race;
+
+        if (state.mode === 'racing') {
+          // Start race timer immediately when player gives any throttle/steering input, or if already moving
+          if (!race.started && (input.up || input.down || input.left || input.right)) {
+            race.started = true;
+          }
+
+          if (race.started) {
+            race.totalTimeMs += dt * 1000;
+            race.currentLapTimeMs += dt * 1000;
+          }
+        }
+
+        // Determine inputs (or gentle autopilot slowdown after finish)
+        let throttle = 0;
+        let brake = 0;
+        let reverseReq = 0;
+        let steerInput = 0;
+
+        if (state.mode === 'racing') {
+          if (input.up) throttle = 1;
+          if (input.down) {
+            if (car.speed > 1.2) {
+              brake = 1;
+            } else {
+              reverseReq = 1;
+            }
+          }
+          if (input.left) steerInput -= 1;
+          if (input.right) steerInput += 1;
+        } else {
+          // Cooldown cruise after finishing 3 laps
+          const q = queryTrackPosition(car.x, car.z, race.lastTrackIndex);
+          const lookIdx = (q.index + 12) % TRACK_SAMPLES;
+          const targetPt = track.samples[lookIdx];
+          const desiredHeading = Math.atan2(targetPt.x - car.x, targetPt.z - car.z);
+          let angleDiff = desiredHeading - car.heading;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          steerInput = Math.max(-1, Math.min(1, -angleDiff * 2.2));
+          if (car.speed > 18) brake = 0.25;
+          else throttle = 0.35;
+        }
+
+        car.braking = brake > 0 || input.handbrake;
+
+        // Track surface check BEFORE updating acceleration
+        const preTrack = queryTrackPosition(car.x, car.z, race.lastTrackIndex);
+        car.offTrack = preTrack.absDist > (ROAD_HALF_WIDTH + 0.65);
+
+        // Speed limits & forces
+        const maxForwardSpeed = car.offTrack ? 18.5 : 53.5; // ~66 km/h off-track vs ~192 km/h on asphalt
+        const maxReverseSpeed = car.offTrack ? 9.5 : 15.5;
+        const engineAccel = car.offTrack ? 14.0 : 26.5;
+        const brakeDecel = 38.0;
+        const reverseAccel = 14.5;
+
+        if (throttle > 0) {
+          const speedRatio = Math.max(0, car.speed) / maxForwardSpeed;
+          const boostCurve = Math.max(0.22, 1.0 - speedRatio * 0.68);
+          car.speed += engineAccel * boostCurve * throttle * dt;
+        } else if (brake > 0) {
+          car.speed -= brakeDecel * brake * dt;
+          if (car.speed < 0) car.speed = 0;
+        } else if (reverseReq > 0) {
+          car.speed -= reverseAccel * reverseReq * dt;
+        } else {
+          // Natural rolling resistance
+          const coastDrag = 5.5;
+          if (Math.abs(car.speed) < coastDrag * dt) {
+            car.speed = 0;
+          } else {
+            car.speed -= Math.sign(car.speed) * coastDrag * dt;
+          }
+        }
+
+        if (input.handbrake && state.mode === 'racing') {
+          car.speed *= Math.max(0, 1 - 2.6 * dt);
+        }
+
+        // Strong off-track grass/gravel drag so going off the asphalt noticeably slows the car!
+        if (car.offTrack) {
+          const offTrackDrag = 1.95;
+          car.speed *= Math.max(0, 1 - offTrackDrag * dt);
+          if (car.speed > maxForwardSpeed) {
+            car.speed -= 28.0 * dt;
+          }
+        }
+
+        car.speed = Math.max(-maxReverseSpeed, Math.min(maxForwardSpeed, car.speed));
+
+        // Steering dynamics
+        const targetSteer = steerInput * 0.52;
+        const steerRate = 7.5;
+        car.steerAngle += (targetSteer - car.steerAngle) * Math.min(1, steerRate * dt);
+
+        // Turn rate scales with speed and reverses properly when backing up
+        const absSpd = Math.abs(car.speed);
+        const speedFactor = Math.min(1, absSpd / 4.2) * (1.0 / (1.0 + absSpd * 0.016));
+        const turnDir = car.speed >= -0.05 ? 1 : -1;
+        const yawRate = -car.steerAngle * 3.15 * speedFactor * turnDir * (input.handbrake ? 1.32 : 1.0);
+        car.heading += yawRate * dt;
+
+        // Forward vector in XZ plane: (sin(heading), cos(heading))
+        const fx = Math.sin(car.heading);
+        const fz = Math.cos(car.heading);
+
+        car.x += fx * car.speed * dt;
+        car.z += fz * car.speed * dt;
+        car.wheelSpin += (car.speed / 0.38) * dt;
+
+        // Visual body pitch & roll
+        const targetPitch = (throttle * -0.032) + (brake * 0.048);
+        const targetRoll = steerInput * Math.min(1, absSpd / 20) * 0.065;
+        car.pitch += (targetPitch - car.pitch) * Math.min(1, 10 * dt);
+        car.roll += (targetRoll - car.roll) * Math.min(1, 10 * dt);
+
+        // Query new track position & enforce closed barrier walls
+        const curTrack = queryTrackPosition(car.x, car.z, preTrack.index);
+        const p = curTrack.point;
+        car.offTrack = curTrack.absDist > (ROAD_HALF_WIDTH + 0.65);
+        car.hittingWall = false;
+
+        const maxAllowedOffset = WALL_HALF_WIDTH - 1.35;
+        if (curTrack.absDist > maxAllowedOffset) {
+          car.hittingWall = true;
+          const clampedSign = Math.sign(curTrack.lateralOffset) || 1;
+          car.x = p.x + p.rx * clampedSign * maxAllowedOffset;
+          car.z = p.z + p.rz * clampedSign * maxAllowedOffset;
+
+          // Dampen speed & gently align heading toward wall tangent
+          car.speed *= Math.max(0.45, 1 - 2.8 * dt);
+          const forwardDot = fx * p.tx + fz * p.tz;
+          const tangentHeading = forwardDot >= 0
+            ? Math.atan2(p.tx, p.tz)
+            : Math.atan2(-p.tx, -p.tz);
+          let hDiff = tangentHeading - car.heading;
+          while (hDiff > Math.PI) hDiff -= Math.PI * 2;
+          while (hDiff < -Math.PI) hDiff += Math.PI * 2;
+          car.heading += hDiff * Math.min(1, 6.5 * dt);
+        }
+
+        // Check wrong way
+        const forwardAlignment = Math.sin(car.heading) * p.tx + Math.cos(car.heading) * p.tz;
+        race.wrongWay = (car.speed > 3.0 && forwardAlignment < -0.35) || (car.speed < -3.0 && forwardAlignment > 0.35);
+
+        // =====================================================================
+        // CHECKPOINT & ANTI-CUT LAP VALIDATION
+        // =====================================================================
+        if (state.mode === 'racing') {
+          const prevIdx = race.lastTrackIndex;
+          const currIdx = curTrack.index;
+
+          // Detect initial start-line crossing (from grid ~591 across 0)
+          if (!race.crossedStartLineToBegin && prevIdx > TRACK_SAMPLES * 0.75 && currIdx < TRACK_SAMPLES * 0.25) {
+            race.crossedStartLineToBegin = true;
+          }
+
+          // Which checkpoint zone (0 .. TOTAL_CHECKPOINTS-1) is the car currently in?
+          const cpZone = Math.floor(curTrack.s * TOTAL_CHECKPOINTS) % TOTAL_CHECKPOINTS;
+
+          if (cpZone === race.nextCheckpoint && forwardAlignment > 0) {
+            race.checkpointsPassedCount = race.nextCheckpoint;
+            race.nextCheckpoint = (race.nextCheckpoint + 1) % TOTAL_CHECKPOINTS;
+          }
+
+          // Compute continuous lap progress percentage based on validated checkpoints
+          const cpFraction = race.checkpointsPassedCount / TOTAL_CHECKPOINTS;
+          const subProgress = Math.max(0, Math.min(1 / TOTAL_CHECKPOINTS, curTrack.s - cpFraction));
+          race.trackProgress = Math.min(0.99, cpFraction + subProgress);
+
+          // Did the car cross the Start/Finish line (s wrapping from high -> low)?
+          const crossedFinishForward =
+            prevIdx > TRACK_SAMPLES * 0.80 &&
+            currIdx < TRACK_SAMPLES * 0.20 &&
+            forwardAlignment > 0;
+
+          if (crossedFinishForward && race.crossedStartLineToBegin) {
+            // Verify ALL 11 intermediate checkpoints were passed in sequence!
+            if (race.checkpointsPassedCount >= TOTAL_CHECKPOINTS - 1) {
+              // Valid lap completed!
+              const completedLapIdx = race.lap - 1;
+              race.lapTimesMs[completedLapIdx] = race.currentLapTimeMs;
+
+              if (race.lap < race.maxLaps) {
+                const finishedLapNum = race.lap;
+                const finishedTimeStr = formatTimeMs(race.currentLapTimeMs);
+                race.lap += 1;
+                race.currentLapTimeMs = 0;
+                race.nextCheckpoint = 1;
+                race.checkpointsPassedCount = 0;
+                race.trackProgress = 0;
+                showTemporaryAlert(`${finishedLapNum}. TUR TAMAMLANDI — ${finishedTimeStr}`, 'info', 2800);
+              } else {
+                // All 3 laps completed!
+                race.checkpointsPassedCount = TOTAL_CHECKPOINTS;
+                race.trackProgress = 1;
+                state.mode = 'finished';
+                openResultsScreen();
+              }
+            } else if (race.currentLapTimeMs > 4000) {
+              // Attempted shortcut / skipped checkpoints!
+              showTemporaryAlert('⚠ EKSİK KONTROL NOKTASI — KISA YOL SAYILMADI!', 'warning', 3000);
+            }
+          }
+        }
+
+        race.lastTrackIndex = curTrack.index;
+
+        if (race.alertTimerMs > 0) {
+          race.alertTimerMs = Math.max(0, race.alertTimerMs - dt * 1000);
+        }
+
+        // =====================================================================
+        // CHASE CAMERA UPDATE (Smoothly follows behind the car)
+        // =====================================================================
+        const camPreset = CAMERA_MODES[state.cameraModeIdx];
+        const speedPullback = Math.min(1.8, Math.max(0, car.speed) * 0.025);
+        const desiredDist = camPreset.dist + speedPullback;
+        const desiredCamX = car.x - Math.sin(car.heading) * desiredDist;
+        const desiredCamY = camPreset.height + Math.min(0.45, Math.abs(car.speed) * 0.006);
+        const desiredCamZ = car.z - Math.cos(car.heading) * desiredDist;
+
+        const camSmooth = Math.min(1, 9.5 * dt);
+        state.camera.x += (desiredCamX - state.camera.x) * camSmooth;
+        state.camera.y += (desiredCamY - state.camera.y) * camSmooth;
+        state.camera.z += (desiredCamZ - state.camera.z) * camSmooth;
+
+        const desiredLookX = car.x + Math.sin(car.heading) * camPreset.lookAhead;
+        const desiredLookY = 0.85;
+        const desiredLookZ = car.z + Math.cos(car.heading) * camPreset.lookAhead;
+        const lookSmooth = Math.min(1, 14.0 * dt);
+        state.camera.lookX += (desiredLookX - state.camera.lookX) * lookSmooth;
+        state.camera.lookY += (desiredLookY - state.camera.lookY) * lookSmooth;
+        state.camera.lookZ += (desiredLookZ - state.camera.lookZ) * lookSmooth;
+      }
+
+      // =========================================================================
+      // 8. HUD, MINIMAP & RESULTS MODAL UPDATES (100% Turkish)
+      // =========================================================================
+      const elLap = document.getElementById('hud-lap');
+      const elProgress = document.getElementById('hud-progress');
+      const elCpText = document.getElementById('hud-checkpoint-text');
+      const elTotalTime = document.getElementById('hud-total-time');
+      const elCurLapTime = document.getElementById('hud-current-lap-time');
+      const elLapTimes = [
+        document.getElementById('lap-time-1'),
+        document.getElementById('lap-time-2'),
+        document.getElementById('lap-time-3')
+      ];
+      const elLapRows = [
+        document.getElementById('lap-row-1'),
+        document.getElementById('lap-row-2'),
+        document.getElementById('lap-row-3')
+      ];
+      const elSpeed = document.getElementById('hud-speed');
+      const elGear = document.getElementById('hud-gear');
+      const elRpmBar = document.getElementById('hud-rpm-bar');
+      const elSurface = document.getElementById('hud-surface');
+      const elAlert = document.getElementById('hud-alert');
+      const minimapCanvas = document.getElementById('minimap-canvas');
+      const mmCtx = minimapCanvas.getContext('2d');
+
+      // Precompute minimap bounds
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const p of track.samples) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.z < minZ) minZ = p.z;
+        if (p.z > maxZ) maxZ = p.z;
+      }
+      const mmPad = 24;
+      const mmScale = Math.min(
+        (minimapCanvas.width - mmPad * 2) / (maxX - minX || 1),
+        (minimapCanvas.height - mmPad * 2) / (maxZ - minZ || 1)
+      );
+      function worldToMinimap(wx, wz) {
+        return {
+          x: mmPad + (wx - minX) * mmScale,
+          y: mmPad + (wz - minZ) * mmScale
+        };
+      }
+
+      function drawMinimap() {
+        const w = minimapCanvas.width;
+        const h = minimapCanvas.height;
+        mmCtx.clearRect(0, 0, w, h);
+
+        // Track outline
+        mmCtx.beginPath();
+        for (let i = 0; i < track.samples.length; i += 4) {
+          const pt = worldToMinimap(track.samples[i].x, track.samples[i].z);
+          if (i === 0) mmCtx.moveTo(pt.x, pt.y);
+          else mmCtx.lineTo(pt.x, pt.y);
+        }
+        mmCtx.closePath();
+        mmCtx.lineWidth = 6;
+        mmCtx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+        mmCtx.stroke();
+
+        mmCtx.lineWidth = 3;
+        mmCtx.strokeStyle = '#9aa3b5';
+        mmCtx.stroke();
+
+        // Start/Finish marker on minimap
+        const sfPt = worldToMinimap(track.samples[0].x, track.samples[0].z);
+        mmCtx.fillStyle = '#f5b82e';
+        mmCtx.fillRect(sfPt.x - 5, sfPt.y - 2, 10, 4);
+
+        // Next checkpoint dot
+        const nextCpIdx = Math.floor((state.race.nextCheckpoint / TOTAL_CHECKPOINTS) * TRACK_SAMPLES) % TRACK_SAMPLES;
+        const cpPt = worldToMinimap(track.samples[nextCpIdx].x, track.samples[nextCpIdx].z);
+        mmCtx.beginPath();
+        mmCtx.arc(cpPt.x, cpPt.y, 3.5, 0, Math.PI * 2);
+        mmCtx.fillStyle = '#2bd980';
+        mmCtx.fill();
+
+        // Player Car Arrow
+        const carPt = worldToMinimap(state.car.x, state.car.z);
+        mmCtx.save();
+        mmCtx.translate(carPt.x, carPt.y);
+        mmCtx.rotate(Math.atan2(Math.sin(state.car.heading), Math.cos(state.car.heading)) - Math.PI / 2);
+        mmCtx.beginPath();
+        mmCtx.moveTo(6, 0);
+        mmCtx.lineTo(-4, -4);
+        mmCtx.lineTo(-4, 4);
+        mmCtx.closePath();
+        mmCtx.fillStyle = '#ff3b30';
+        mmCtx.fill();
+        mmCtx.strokeStyle = '#ffffff';
+        mmCtx.lineWidth = 1.2;
+        mmCtx.stroke();
+        mmCtx.restore();
+      }
+
+      function updateHUD() {
+        const car = state.car;
+        const race = state.race;
+
+        elLap.innerHTML = `${race.lap} <span>/ ${race.maxLaps}</span>`;
+        const pct = Math.round(race.trackProgress * 100);
+        elProgress.textContent = `%${pct}`;
+        elCpText.textContent = `${race.checkpointsPassedCount} / ${TOTAL_CHECKPOINTS}`;
+
+        for (let i = 0; i < TOTAL_CHECKPOINTS; i++) {
+          if (i < race.checkpointsPassedCount) {
+            sectorPips[i].className = 'sector-pip passed';
+          } else if (i === race.checkpointsPassedCount) {
+            sectorPips[i].className = 'sector-pip next';
+          } else {
+            sectorPips[i].className = 'sector-pip';
+          }
+        }
+
+        elTotalTime.textContent = formatTimeMs(race.totalTimeMs);
+        elCurLapTime.textContent = formatTimeMs(race.currentLapTimeMs);
+
+        for (let i = 0; i < 3; i++) {
+          const t = race.lapTimesMs[i];
+          if (t !== null) {
+            elLapTimes[i].textContent = formatTimeMs(t);
+            elLapRows[i].className = 'lap-split-item completed-lap';
+          } else if (i === race.lap - 1 && state.mode === 'racing') {
+            elLapTimes[i].textContent = formatTimeMs(race.currentLapTimeMs);
+            elLapRows[i].className = 'lap-split-item active-lap';
+          } else {
+            elLapTimes[i].textContent = '--:--.---';
+            elLapRows[i].className = 'lap-split-item';
+          }
+        }
+
+        const kmh = Math.round(Math.abs(car.speed) * 3.6);
+        elSpeed.textContent = String(kmh);
+
+        // Gear & RPM calculation
+        let gear = 'N';
+        let rpmPct = 15;
+        if (car.speed < -0.5) {
+          gear = 'R';
+          rpmPct = Math.min(95, 25 + (Math.abs(car.speed) / 15) * 70);
+        } else if (kmh < 2) {
+          gear = '1';
+          rpmPct = input.up ? 55 : 16;
+        } else {
+          const gNum = Math.min(6, Math.max(1, Math.floor(kmh / 32) + 1));
+          gear = String(gNum);
+          const gearBase = (gNum - 1) * 32;
+          rpmPct = Math.min(98, Math.max(28, ((kmh - gearBase) / 34) * 72 + 26));
+        }
+        elGear.textContent = gear;
+        elRpmBar.style.width = `${rpmPct}%`;
+
+        if (car.offTrack) {
+          elSurface.textContent = 'ÇİM / ÇAKIL (YAVAŞLAMA)';
+          elSurface.className = 'surface-tag offtrack';
+        } else {
+          elSurface.textContent = 'ASFALT PİST';
+          elSurface.className = 'surface-tag';
+        }
+
+        // Priority Alert Banner
+        if (race.wrongWay && state.mode === 'racing') {
+          elAlert.textContent = '⚠ TERS YÖN! PİST YÖNÜNE DÖNÜN';
+          elAlert.className = 'alert-banner warning visible';
+        } else if (car.offTrack && state.mode === 'racing') {
+          elAlert.textContent = '⚠ PİST DIŞI — ÇİM ZEMİNDE HIZ DÜŞÜYOR!';
+          elAlert.className = 'alert-banner warning visible';
+        } else if (race.alertTimerMs > 0) {
+          elAlert.textContent = race.alertText;
+          elAlert.className = `alert-banner ${race.alertType} visible`;
+        } else {
+          elAlert.className = 'alert-banner';
+        }
+
+        drawMinimap();
+      }
+
+      function openResultsScreen() {
+        const race = state.race;
+        const validTimes = race.lapTimesMs.filter((t) => t !== null);
+        const bestLap = validTimes.length > 0 ? Math.min(...validTimes) : 0;
+
+        document.getElementById('res-total-time').textContent = formatTimeMs(race.totalTimeMs);
+        document.getElementById('res-best-lap').textContent = formatTimeMs(bestLap);
+
+        for (let i = 0; i < 3; i++) {
+          const cell = document.getElementById(`res-lap-${i + 1}`);
+          const t = race.lapTimesMs[i];
+          const isBest = t !== null && Math.abs(t - bestLap) < 1;
+          cell.innerHTML = formatTimeMs(t) + (isBest ? '<span class="best-lap-badge">En İyi</span>' : '');
+        }
+
+        const totalSec = race.totalTimeMs / 1000;
+        let rankMsg = 'Tebrikler! 3 turu hatasız tamamlayarak damalı bayrağı gördünüz.';
+        if (totalSec < 85) {
+          rankMsg = '🏆 ALTIN KUPA — Olağanüstü bir tempo ile pist rekoru kırdınız!';
+        } else if (totalSec < 110) {
+          rankMsg = '🥈 GÜMÜŞ KUPA — Çok temiz ve hızlı bir 3 tur çıkardınız!';
+        }
+        document.getElementById('results-rank-text').textContent = rankMsg;
+        document.getElementById('results-modal').classList.add('open');
+      }
+
+      // =========================================================================
+      // 9. 3D SCENE RENDERING
+      // =========================================================================
+      const projMat = Mat4.create();
+      const viewMat = Mat4.create();
+      const carModelMat = Mat4.create();
+      const wheelModelMat = Mat4.create();
+
+      const WHEEL_OFFSETS = [
+        { x: -0.96, y: 0.38, z:  1.32, isFront: true },
+        { x:  0.96, y: 0.38, z:  1.32, isFront: true },
+        { x: -0.98, y: 0.38, z: -1.32, isFront: false },
+        { x:  0.98, y: 0.38, z: -1.32, isFront: false }
+      ];
+
+      function resizeCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+        const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
+      function renderScene() {
+        resizeCanvas();
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0.68, 0.78, 0.90, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);
+
+        const aspect = canvas.width / canvas.height;
+        Mat4.perspective(projMat, (58 * Math.PI) / 180, aspect, 0.5, 650.0);
+        Mat4.lookAt(
+          viewMat,
+          [state.camera.x, state.camera.y, state.camera.z],
+          [state.camera.lookX, state.camera.lookY, state.camera.lookZ],
+          [0, 1, 0]
+        );
+
+        gl.useProgram(program);
+        gl.uniformMatrix4fv(uniforms.proj, false, projMat);
+        gl.uniformMatrix4fv(uniforms.view, false, viewMat);
+        gl.uniform3f(uniforms.camPos, state.camera.x, state.camera.y, state.camera.z);
+        gl.uniform3f(uniforms.sunDir, 0.55, 0.82, 0.35);
+
+        // 1. Grass Ground
+        drawMesh(groundMesh, IDENTITY_MAT, 3, null, 0.0, 0.0);
+
+        // 2. Asphalt Road
+        drawMesh(roadMesh, IDENTITY_MAT, 2, null, 18.0, 0.0);
+
+        // 3. Kerbs & Closed Perimeter Barrier Walls
+        drawMesh(kerbAndWallMesh, IDENTITY_MAT, 0, null, 10.0, 0.0);
+
+        // 4. Start/Finish Line Checkered Strip & Overhead Banner
+        drawMesh(startLineMesh, IDENTITY_MAT, 1, checkerTexture, 12.0, 0.15);
+        drawMesh(bannerMesh, IDENTITY_MAT, 1, bannerTexture, 8.0, 0.25);
+
+        // 5. Scenery (Gantry, Sector Arches, Grandstands, Trees, Hills)
+        drawMesh(sceneryMesh, IDENTITY_MAT, 0, null, 8.0, 0.0);
+
+        // 6. Player Car Chassis & Brake Lights
+        const car = state.car;
+        Mat4.fromTranslationRotationScale(
+          carModelMat,
+          car.x,
+          car.y,
+          car.z,
+          car.heading,
+          car.pitch,
+          car.roll,
+          1, 1, 1
+        );
+        drawMesh(carChassisMesh, carModelMat, 0, null, 42.0, 0.0);
+        drawMesh(brakeLightMesh, carModelMat, 0, null, 16.0, car.braking ? 0.92 : 0.15);
+
+        // 7. Four Rotating & Steering Wheels
+        const ch = Math.cos(car.heading);
+        const sh = Math.sin(car.heading);
+        for (const w of WHEEL_OFFSETS) {
+          const wx = car.x + w.x * ch + w.z * sh;
+          const wy = car.y + w.y;
+          const wz = car.z - w.x * sh + w.z * ch;
+          const wheelYaw = car.heading - (w.isFront ? car.steerAngle : 0);
+          Mat4.fromTranslationRotationScale(
+            wheelModelMat,
+            wx,
+            wy,
+            wz,
+            wheelYaw,
+            car.wheelSpin,
+            0,
+            1, 1, 1
+          );
+          drawMesh(wheelMesh, wheelModelMat, 0, null, 18.0, 0.0);
+        }
+      }
+
+      // =========================================================================
+      // 10. KEYBOARD & UI CONTROLS
+      // =========================================================================
+      function handleKey(e, isDown) {
+        const code = e.code || '';
+        const key = (e.key || '').toLowerCase();
+
+        if (code === 'ArrowUp' || code === 'KeyW' || key === 'w' || key === 'arrowup') {
+          input.up = isDown;
+          e.preventDefault();
+        } else if (code === 'ArrowDown' || code === 'KeyS' || key === 's' || key === 'arrowdown') {
+          input.down = isDown;
+          e.preventDefault();
+        } else if (code === 'ArrowLeft' || code === 'KeyA' || key === 'a' || key === 'arrowleft') {
+          input.left = isDown;
+          e.preventDefault();
+        } else if (code === 'ArrowRight' || code === 'KeyD' || key === 'd' || key === 'arrowright') {
+          input.right = isDown;
+          e.preventDefault();
+        } else if (code === 'Space' || key === ' ') {
+          input.handbrake = isDown;
+          e.preventDefault();
+        } else if (isDown && (code === 'KeyR' || key === 'r')) {
+          resetRace();
+        } else if (isDown && (code === 'KeyC' || key === 'c')) {
+          cycleCamera();
+        } else if (isDown && (code === 'KeyF' || key === 'f')) {
+          toggleFullscreen();
+        } else if (isDown && (code === 'Enter' || key === 'enter') && state.mode === 'finished') {
+          resetRace();
+        }
+      }
+
+      window.addEventListener('keydown', (e) => handleKey(e, true));
+      window.addEventListener('keyup', (e) => handleKey(e, false));
+
+      function cycleCamera() {
+        state.cameraModeIdx = (state.cameraModeIdx + 1) % CAMERA_MODES.length;
+        const preset = CAMERA_MODES[state.cameraModeIdx];
+        document.getElementById('btn-camera').textContent = `Kamera: ${preset.name} (C)`;
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        } else {
+          document.exitFullscreen?.().catch(() => {});
+        }
+      }
+
+      document.getElementById('btn-camera').addEventListener('click', cycleCamera);
+      document.getElementById('btn-quick-reset').addEventListener('click', resetRace);
+      document.getElementById('btn-restart-race').addEventListener('click', resetRace);
+
+      // =========================================================================
+      // 11. AUTOMATED TESTING & TELEMETRY HOOKS
+      // =========================================================================
+      window.render_game_to_text = function () {
+        return JSON.stringify({
+          coordinateSystem: 'X: right(+), Y: up(+), Z: south(+). Start/Finish straight faces -Z at (0,0).',
+          mode: state.mode,
+          lap: state.race.lap,
+          maxLaps: state.race.maxLaps,
+          totalTimeMs: Math.round(state.race.totalTimeMs),
+          currentLapTimeMs: Math.round(state.race.currentLapTimeMs),
+          lapTimesMs: state.race.lapTimesMs.map((t) => (t !== null ? Math.round(t) : null)),
+          checkpointsPassed: state.race.checkpointsPassedCount,
+          totalCheckpoints: TOTAL_CHECKPOINTS,
+          trackProgress: Number(state.race.trackProgress.toFixed(3)),
+          car: {
+            x: Number(state.car.x.toFixed(2)),
+            z: Number(state.car.z.toFixed(2)),
+            headingRad: Number(state.car.heading.toFixed(3)),
+            speedKmh: Math.round(Math.abs(state.car.speed) * 3.6),
+            offTrack: state.car.offTrack,
+            hittingWall: state.car.hittingWall
+          },
+          cameraMode: CAMERA_MODES[state.cameraModeIdx].name
+        });
+      };
+
+      let manualStepping = false;
+      window.advanceTime = function (ms) {
+        manualStepping = true;
+        const stepDt = 1 / 60;
+        const steps = Math.max(1, Math.round(ms / (stepDt * 1000)));
+        for (let i = 0; i < steps; i++) {
+          updateSimulation(stepDt);
+        }
+        updateHUD();
+        renderScene();
+      };
+
+      // Main Animation Loop
+      resetRace();
+      let lastFrameTime = performance.now();
+      function frameLoop(now) {
+        const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
+        lastFrameTime = now;
+        if (!manualStepping) {
+          updateSimulation(dt);
+          updateHUD();
+          renderScene();
+        }
+        requestAnimationFrame(frameLoop);
+      }
+      requestAnimationFrame(frameLoop);
+    })();
+  </script>
+</body>
+</html>

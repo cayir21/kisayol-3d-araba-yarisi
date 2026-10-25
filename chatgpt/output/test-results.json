@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "frames": 3379,
+  "maxOffset": 1.7371568102434987,
+  "final": {
+    "mode": "finished",
+    "coordinates": "x: doğu, z: güney, y: yükseklik; saat yönünde pist",
+    "player": {
+      "x": -39.419,
+      "z": -48.012,
+      "heading": 18.828,
+      "speedMps": 0,
+      "offroad": false
+    },
+    "lap": 3,
+    "completedLaps": 3,
+    "totalSeconds": 56.4,
+    "lapTimes": [
+      19.85,
+      18.267,
+      18.283
+    ],
+    "trackLength": 561.5928947446201,
+    "nextCheckpoint": 1,
+    "progressMeters": 0.58,
+    "remainingCountdown": 0
+  },
+  "checks": [
+    "WASD acceleration / steering / reverse",
+    "Pause and resume freeze time and position",
+    "Reverse start crossing rejected",
+    "Repeated line crossings rejected",
+    "Grass slows and barriers retain car",
+    "Three laps driven using real key events",
+    "All lap times sum to total",
+    "Results shown and restart resets state",
+    "Focus loss clears keys and pauses"
+  ]
+}
